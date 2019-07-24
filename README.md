@@ -10,15 +10,6 @@
                -thymeleaf
      DB  : H2
      API  : KAKAO rest API, NAVER API
-  Library : Jquery 3.4.1
-            bootstrap
+    Library : Jquery 3.4.1
+              bootstrap
             
-#
-#
-#
-#
-
-
-
-
-
