@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>SBBK Main</title>
+	<link rel="stylesheet" href="css/bootstrap.css">
+	<script type="text/javascript" src="js/jquery-3.4.1.min.js"></script>
+	<script type="text/javascript" src="js/bootstrap.js"></script>
+	<script type="text/javascript">
+	$(document).ready(function() {
+
+		var sessUserId = $("#sessUserId").val();
+		if(sessUserId != null){
+			$("#LoginButton").hide();
+			$("#MyHistoryButton").show();
+			$("#logoutButton").show();
+			
+		}else{
+			$("#LoginButton").show();
+			$("#MyHistoryButton").hide();
+			$("#logoutButton").hide();
+		}		
+		
+		//Login Ajax
+		$("#loginButton").click(function() {
+			var action = $("#loginForm").attr('action');
+			var form_data = {
+				userId: $("#userId").val(),
+				userPwd: $("#userPwd").val(),
+				is_ajax: 1
+			};
+			$.ajax({
+				type: "POST",
+				url: action,
+				data: form_data,
+				success: function(response) {
+					if(response == 'success') {
+						$("#message").html("<p style='color:green;font-weight:bold'>Login Success!</p>");
+						$("#welcomeUser").show();
+						$('#LoginModal').modal('hide');
+						alert("Login Success!");
+						$("#logoutButton").show();
+						$("#MyHistoryButton").show();
+						$("#LoginButton").hide();
+					}
+					else if(response == 'fail1') {
+						$("#message").html("<p style='color:red'>ID or PWD Invalid</p>");	
+					}else{
+						$("#message").html("<p style='color:red'>Aleady Login!</p>");
+						$('#myModal').modal('hide');
+					}
+				}
+			});
+			return false;
+		});
+		
+		//SignIn Ajax
+		$("#SignInButton").click(function() {
+			var action = "/SignIn";
+			var form_data = {
+				userId: $("#userId").val(),
+				userPwd: $("#userPwd").val(),
+				is_ajax: 1
+			};
+			$.ajax({
+				type: "POST",
+				url: action,
+				data: form_data,
+				success: function(response) {
+					if(response == 'success') {
+						$("#message").html("<p style='color:green;font-weight:bold'>Sign In Success!</p>");
+					}
+					else{
+						$("#message").html("<p style='color:red'>Sign In fail!</p>");
+					}
+				}
+			});
+			return false;
+		});
+		
+		//Logout Ajax
+		$("#logoutButton").click(function() {
+			$.ajax({
+				type: "POST",
+				url: "/logout",
+				data: null,
+				success: function(response) {
+					if(response == 'success') {
+						alert("Logout Success!")
+						$("#logoutButton").hide();
+						$("#MyHistoryButton").hide();
+						$("#LoginButton").show();
+						$("#message").html("");
+						$("#welcomeUser").hide();
+					}
+				}
+			});
+			return false;
+		});
+		
+		//SearchBook 페이징처리위해 분리
+		$("#SearchButton").click(function(){
+			searchBook(1);
+		});
+
+		//DetailView
+		$('#BookDetailModal').on('show.bs.modal', function (e) {
+			var button = $(e.relatedTarget);
+			var index = button.data('index');
+			$("#ditailTitle").text($('#title_'+index).val());
+			$("#ditailThumbnail").attr("src",$('#thumbnail_'+index).val());
+			$("#ditailContents").text($('#contents_'+index).val());
+			$("#ditailAuthors").text($('#authors_'+index).val());
+			$("#ditailPublisher").text($('#publisher_'+index).val());
+			$("#ditailDatetime").text($('#datetime_'+index).val());
+			$("#ditailPrice").text($('#price_'+index).val());
+			$("#ditailSale_price").text($('#sale_price_'+index).val());
+
+		});
+		
+		
+		//MyHistory
+		$('#MyHistory').on('show.bs.modal', function (e) {
+			var form_data = {
+					userId: $("#userId").val(),
+					is_ajax: 1
+				};
+			$.ajax({
+				type: "POST",
+				url: "/getMyHistory",
+				data: form_data,
+				success: function(response) {
+						var myhistoryHtml = "";
+						for(var i=0 in response){
+							var responseString = response[i]+'';
+							var responseSplit = responseString.split(",");
+							
+							var searchYMDHMS = responseSplit[1]+'';
+							var searchYMD = searchYMDHMS.split("T");
+							var searchHMS = searchYMD[1].split(".");
+								
+								
+							
+							myhistoryHtml += "<label> 검색어 : " + responseSplit[0] + " / 검색일시 : " + searchYMD[0] +" " + searchHMS[0] + "</label><br>"; 
+						}
+						$("#myHistory").html(myhistoryHtml);
+				}
+			});
+			
+			
+
+		});
+		
+		return false;
+	});
+	
+	function searchBook(page){
+		if($("#keyword").val() == ""){
+			alert("Input the Keyword!");
+			return false;
+		}
+		var page = page ? page : 1;
+		var frm = document.searchForm;
+		frm.page.value = page;		
+		$.ajax({
+			type: "POST",
+			url: "/searchBooks",
+			data: $(frm).serialize(),
+			beforeSend: function(){
+				$(frm).find("button[type=submit]").prop("disabled", true);
+			},
+			success: function(response) {
+				if(response.meta.total_count > 0){
+						var html = "";
+						var inputHidden = ""; //JSON객체를 input에 저장
+						var paging = ""; //페이징처리
+						var prev = "";
+						var nextv = ""; 
+						$(response.documents)
+								.each(
+										function(idx) {
+											var authors = "", thumbnail = "", isbn = "";
+											$(this.authors)
+													.each(
+															function() {
+																authors += (this + " ")
+															});
+											if (this.thumbnail) {
+												thumbnail = "<img src='"+this.thumbnail+"' width='100'>";
+											}
+											var arr_isbn = this.isbn.split(" ");
+											if(arr_isbn.length>1){
+												isbn = arr_isbn[1];
+											}else{
+												isbn = arr_isbn[0];
+											}
+											html += "<tr>"
+											  + "<td>" + ((page-1)*10 + (idx + 1)) + "</td>"
+											  + "<td>" + "<img src='" + this.thumbnail + "' width='50'>" + "</td>"
+											  + "<td align='left' style='display:block;'  data-toggle='modal' data-target='#BookDetailModal' data-index='"+ (idx+1) +"' >" + this.title + "</td>"
+											  + "<td>" + this.authors + "</td>"
+											  + "<td>" + this.publisher + "</td>"
+											  + "</tr>";
+											  //제목, 도서썸네일, 소개, ISBN, 저자, 출판사, 출판일, 정가, 판매가
+											inputHidden += "<input type='hidden' id='title_"+ (idx+1) + "' value='" + this.title + "' />"
+												+ "<input type='hidden' id='thumbnail_"+ (idx+1) + "' value='" + this.thumbnail + "' />"
+												+ "<input type='hidden' id='contents_"+ (idx+1) + "' value='" + this.contents + "' />"
+												+ "<input type='hidden' id='authors_"+ (idx+1) + "' value='" + this.authors + "' />"
+												+ "<input type='hidden' id='publisher_"+ (idx+1) + "' value='" + this.publisher + "' />"
+												+ "<input type='hidden' id='datetime_"+ (idx+1) + "' value='" + this.datetime + "' />"
+												+ "<input type='hidden' id='price_"+ (idx+1) + "' value='" + this.price + "' />"
+												+ "<input type='hidden' id='sale_price_"+ (idx+1) + "' value='" + this.sale_price + "' />";
+										});
+						//페이징처리
+						var total_page = parseInt((response.meta.pageable_count/10) +1);
+						if(page <= 1){
+							paging = "<li class='page-item disabled'><a class='page-link' onClick='searchBook(" + (page-1) + ")'> &lt; </a></li>"
+							+ "<li class='page-item'><a class='page-link'>" + page + "/" + total_page + "</a></li>"
+							+ "<li class='page-item'><a class='page-link' onClick='searchBook(" + (page+1) + ")'> &gt; </a></li>";
+						}else if(page == total_page){
+							paging = "<li class='page-item'><a class='page-link' onClick='searchBook(" + (page-1) + ")'> &lt; </a></li>"
+							+ "<li class='page-item'><a class='page-link'>" + page + " / " + total_page + "</a></li>"
+					 		+ "<li class='page-item disabled'><a class='page-link' onClick='searchBook(" + (page+1) + ")'> &gt; </a></li>";
+						}else{
+							paging = "<li class='page-item'><a class='page-link' onClick='searchBook(" + (page-1) + ")'> &lt; </a></li>"
+							+ "<li class='page-item'><a class='page-link'>" + page + "/" + total_page + "</a></li>"
+					 		+ "<li class='page-item'><a class='page-link' onClick='searchBook(" + (page+1) + ")'> &gt; </a></li>";
+						}
+					
+						$("#booksList > tbody").html(html);
+						$("#searchBooksResult").html(inputHidden);
+						$("#pagination").html(paging);
+					} else{
+						html = "<tr>"
+	            		 + "<td colspan=5 align='center'>검색된 책이 없습니다.</td>"
+	            		 + "</tr>";
+	            		 $("#booksList > tbody").html(html);
+					}
+			}, 
+			complete : function() {
+				$(frm).find("button[type=submit]").prop("disabled", false);
+				HistoryBook();
+			}
+		});
+	}
+	
+	$(function searchRank() {
+		timer = setInterval( function () {
+			var searchRankHtml = "";
+			$.ajax ({
+				url : "/getHistory", 
+				cache : false,
+				success : function (response) {
+					
+					if(response.length < 10){
+						for(var i=0 in response){      
+							var responseString = response[i]+'';
+							var responseSplit = responseString.split(",");
+	                        searchRankHtml += "<li>" + responseSplit[0] + " / " + responseSplit[1] + "건</li>"; 
+	                        
+	                    }						
+					}else {
+						for(var i=0; i < 10; i++){      
+							var responseString = response[i]+'';
+							var responseSplit = responseString.split(",");
+	                        searchRankHtml += "<li>" + responseSplit[0] + " / " + responseSplit[1] + "건</li>"; 
+	                        
+	                    }
+					}
+					
+
+					$("#searchRank > ol").html(searchRankHtml);
+				}
+			});
+		}, 10000);
+	});
+
+
+	
+	function HistoryBook(){
+		var keyword = $("#keyword").val();
+		var userId = $("#userId").val();
+		$.ajax({
+			type: "POST",
+			url: "/saveHistory",
+			data: {'keyword' : keyword, 'userId' : userId},
+			success: function(response) {
+			}
+		});
+	}
+	
+	
+/* 	
+	function getFormatDate(date){
+		var year = date.getFullYear();
+		var month = (1 + date.getMonth());	//M
+		month = month >= 10 ? month : '0' + month;
+		var day = date.getDate();
+		day = day >= 10 ? day : '0' + day;
+		return year + '' + month + '' + day;
+	}
+ */
+	</script>
+</head>
+
+
+<body>
+    <!-- header -->
+    <header>
+	    <div class="jumbotron text-center mb-0">
+	        <h1>SBBK_kmc7897</h1>
+	        <p>Searching Books by KakaoAPI</p>
+			<div class="" id="welcomeUser">'<a th:text="${session.userId}"></a>' Welcome!</div>
+	    </div>
+    </header>
+    
+    <!-- navigator -->
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
+      <div class="container-fluid">
+	    <div class="navbar-header">
+	      <a class="navbar-brand" href="/">Home</a>
+	  </div>
+      <form id="searchForm" name="searchForm" onsubmit="return searchBook();">
+      	<div class="input-group ">
+	      	<select id="target" name="target" class="form-control" >
+				<option value="title" selected>제목</option>
+				<option value="isbn">ISBN</option>
+				<option value="person">저자</option>
+				<option value="publisher">출판사</option>
+			</select>
+			<input type="text" id="keyword" name="keyword" class="form-control" placeholder="Search" value="" />
+			<button id="SearchButton" class="btn btn-secondary" type="submit">Search</button>
+			<input type="hidden" id="page" name="page" value="1">
+	  	</div>
+	   </form>
+	      <ul class="nav navbar-nav navbar-right">
+	      	<li><input type="hidden" id="sessUserId" name="sessUserId" th:value="${session.userId }" /></li>
+	        <li><button type="button" id="LoginButton" class="btn btn-primary" data-toggle="modal" data-target="#LoginModal" >Login</button></li>
+	        <li><button type="button" id="MyHistoryButton" class="btn btn-primary" data-toggle="modal" data-target="#MyHistory" >MyHistory</button></li>
+	        <li><button type="button" id="logoutButton" class="btn btn-danger">Logout</button></li>
+	      </ul>
+	  	</div>
+		
+		<!-- Login modal Popup -->
+		<div class="modal fade" id="LoginModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" >
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+				<h2 class="form-signin-heading">Login</h2>
+		      </div>
+		      <div class="modal-body">
+		      	<form id="loginForm" action="/login" method="POST">
+		        	<input type="text" id="userId" name="userId" class="form-control" placeholder="ID" required autofocus />
+	         		<input type="password" id="userPwd" name="userPwd" class="form-control" placeholder="Password" required />
+	         		<br>
+	         		<button id="loginButton" class="btn btn-primary btn-block">Login</button>
+	         	</form>
+	         		<button id="SignInButton" class="btn btn-danger btn-block" >Sign In</button>
+	 	      </div>
+			  <div class="modal-footer">
+			  	<div id="message"></div>
+			  </div>
+		    </div>
+		  </div>
+		</div>
+		<!-- MyHistory modal Popup -->
+		<div class="modal fade" id="MyHistory" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" >
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+				<h2 class="form-signin-heading">MyHistory</h2>
+		      </div>
+		      <div class="modal-body" id="myHistory">
+		      	<label>히스토리가 없습니다.</label><br>
+	 	      </div>
+			  <div class="modal-footer">
+			  	<div id="message"></div>
+			  </div>
+		    </div>
+		  </div>
+		</div>
+    </nav>
+ 
+    <!-- content -->
+    <div class="container pt-3">
+        <div class="row">
+        
+            <!-- left content -->
+            <h2>Search Books List</h2>
+            <div class="col-md-10">
+            	<div id="searchBooksResult"></div>
+		        <table id="booksList" class="table table-striped table-hover">
+		            <thead>
+		                <tr>
+		                    <th class="text-center" width="10%">No</th>
+		                    <th colspan="2" class="text-center" width="*">제목</th>
+		                    <th class="text-center" width="15%">저자</th>
+		                    <th class="text-center" width="15%">출판사</th>
+		                </tr>
+		            </thead>
+		            <tbody class="text-center">
+		            	<tr>
+		            		<td colspan=5 align='center'>검색된 책이 없습니다.</td>
+		            	</tr>
+		            </tbody>
+		        </table>
+		      	<!-- Paging 처리 -->
+				<div class="paging" id="paging">
+					<div class="paging-inner" id="paging-inner">
+						<ul class="pagination" id="pagination">
+						</ul>
+					</div>
+				</div>
+            </div>
+            
+       	<!-- Book Detail modal Popup -->
+		<div class="modal fade" id="BookDetailModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" >
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+				<h2 class="form-signin-heading">BookDetail</h2>
+		      </div>
+		      <div class="modal-body">
+		      	<label><img id="ditailThumbnail" src="" width="100"></label><br>
+				<label>제목 : <span id="ditailTitle"></span></label><br>
+				<label>ISBN : <span id="ditailIsbn"></span></label><br>
+				<label>저자 : <span id="ditailAuthors"></span></label><br>
+				<label>출판사 : <span id="ditailPublisher"></span></label><br>
+				<label>출판일 : <span id="ditailDatetime"></span></label><br>
+				<label>정가 : <span id="ditailPrice"></span></label><br>
+				<label>판매가 : <span id="ditailSale_price"></span></label><br>
+				<label>소개 : <span id="ditailContents"></span></label>
+	 	      </div>
+			  <div class="modal-footer">
+			  	<button type="button" class="btn btn-secondary" data-dismiss="modal">닫기</button>
+			  </div>
+		    </div>
+		  </div>
+		</div>
+            
+          <!-- right content -->
+          <div class="col-md-2">
+          	<hr>
+          	<div class="text-center" id="searchRank">
+              	<h4>실시간 검색어 </h4>
+              	<ol>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              		<li>집계중...</li>
+              	</ol>
+              </div>
+              <hr>
+              </div>
+          </div>
+      </div>
+    
+
+
+    <!-- footer -->
+    <footer>
+	    <div class="jumbotron text-center mt-5 mb-0 bg-dark text-white">
+	        <h3 class="text-secondary">Kim Minchul</h3>
+	        <p><span class="text-primary">Email</span> : kmc7897@gmail.com  | <span class="text-primary">Phone</span> : 010-7378-7897 | <span class="text-primary">Git</span> : https://github.com/kmc7897/SBBK</p>
+	    </div>
+	</footer>
+</body>
+</html>
